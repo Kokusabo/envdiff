@@ -37,3 +37,22 @@ def test_display_masks_secrets_only():
     assert display_value("API_KEY", "abc123") == "********"
     assert display_value("LOG_LEVEL", "info") == "info"
     assert display_value("LOG_LEVEL", "") == "(empty)"
+
+
+def test_changed_values_detected():
+    result = compare({"A": "1", "B": "same"}, {"A": "2", "B": "same"})
+    assert result.changed == ["A"]
+    assert not result.has_issues
+
+
+def test_changed_ignores_empty_values():
+    result = compare({"A": "1"}, {"A": ""})
+    assert result.changed == []
+    assert result.empty == ["A"]
+
+
+def test_url_password_is_masked_for_non_secret_key():
+    assert display_value("DATABASE_URL", "postgres://app:h7Yx2pQ9@db:5432/x") == (
+        "postgres://app:********@db:5432/x"
+    )
+    assert display_value("REDIS_URL", "redis://localhost:6379/0") == "redis://localhost:6379/0"

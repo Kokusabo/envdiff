@@ -43,6 +43,9 @@ envdiff compare BASE OTHER           # report missing and extra keys
 envdiff compare BASE OTHER --strict  # also fail on empty values
 envdiff compare BASE OTHER -i DEBUG -i LOG_LEVEL  # skip keys (repeatable)
 envdiff compare BASE OTHER --json    # machine-readable output, never includes values
+envdiff compare BASE OTHER --show-changed  # also list keys whose values differ
+envdiff compare BASE OTHER -v        # show parser warnings (bad lines, duplicates)
+envdiff compare BASE OTHER1 OTHER2   # check several files against one reference
 envdiff --version
 ```
 
@@ -50,6 +53,7 @@ envdiff --version
 - `OTHER` is the file to check, such as `.env.prod`.
 - Exit code `0` means no problems were found. `1` means there are differences.
 - Keys whose names contain `KEY`, `TOKEN`, `SECRET`, `PASSWORD`, and similar are shown as `********`.
+- Passwords inside URLs (`postgres://user:pass@host`) are masked even when the key name does not look like a secret.
 
 CI example:
 
@@ -59,7 +63,9 @@ CI example:
 
 ## Supported syntax
 
-Comments (`#`), blank lines, `export KEY=value`, single and double quoted values, inline comments on unquoted values, and empty values.
+Comments (`#`), blank lines, `export KEY=value`, single and double quoted values (a trailing comment after the quote is allowed), inline comments on unquoted values, empty values, UTF-8 BOM, and Windows (CRLF) line endings.
+
+Lines that cannot be parsed and duplicate keys are reported as warnings with `--verbose`.
 
 ## Development
 

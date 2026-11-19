@@ -95,3 +95,43 @@ def test_version_flag():
     result = runner.invoke(app, ["--version"])
     assert result.exit_code == 0
     assert "0.1.0" in result.output
+
+
+def test_multiple_others_exit_one_if_any_fails(tmp_path):
+    a = _write(tmp_path, "a.env", "A=1\n")
+    ok = _write(tmp_path, "ok.env", "A=2\n")
+    bad = _write(tmp_path, "bad.env", "")
+    result = runner.invoke(app, ["compare", str(a), str(ok), str(bad)])
+    assert result.exit_code == 1
+
+
+def test_multiple_others_json_is_list(tmp_path):
+    import json
+
+    a = _write(tmp_path, "a.env", "A=1\n")
+    ok = _write(tmp_path, "ok.env", "A=2\n")
+    bad = _write(tmp_path, "bad.env", "")
+    result = runner.invoke(app, ["compare", str(a), str(ok), str(bad), "--json"])
+    payload = json.loads(result.output)
+    assert isinstance(payload, list)
+    assert [p["ok"] for p in payload] == [True, False]
+
+
+def test_show_changed_masks_secrets(tmp_path):
+    a = _write(tmp_path, "a.env", "API_KEY=oldsecretvalue\nLOG=info\n")
+    b = _write(tmp_path, "b.env", "API_KEY=newsecretvalue\nLOG=debug\n")
+    result = runner.invoke(app, ["compare", str(a), str(b), "--show-changed"])
+    assert result.exit_code == 0
+    assert "changed" in result.output
+    assert "oldsecretvalue" not in result.output
+    assert "newsecretvalue" not in result.output
+    assert "debug" in result.output
+
+
+def test_verbose_shows_parser_warnings(tmp_path):
+    a = _write(tmp_path, "a.env", "A=1\nBROKEN\n")
+    b = _write(tmp_path, "b.env", "A=1\n")
+    result = runner.invoke(app, ["compare", str(a), str(b), "--verbose"])
+    assert "no '='" in result.output
+    quiet = runner.invoke(app, ["compare", str(a), str(b)])
+    assert "no '='" not in quiet.output

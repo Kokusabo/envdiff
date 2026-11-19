@@ -1,4 +1,4 @@
-from envdiff.parser import parse_env
+from envdiff.parser import parse_env, parse_env_detailed
 
 
 def test_basic_pairs():
@@ -41,3 +41,38 @@ def test_duplicate_key_last_wins():
 
 def test_lines_without_equals_are_skipped():
     assert parse_env("NOT_A_PAIR\nA=1") == {"A": "1"}
+
+
+def test_quoted_value_with_trailing_comment():
+    assert parse_env('A="x" # note') == {"A": "x"}
+    assert parse_env("B='y' # note") == {"B": "y"}
+
+
+def test_bom_is_stripped_from_first_key():
+    assert parse_env("﻿FIRST=1\nSECOND=2") == {"FIRST": "1", "SECOND": "2"}
+
+
+def test_crlf_line_endings():
+    assert parse_env("A=1\r\nB=2\r\n") == {"A": "1", "B": "2"}
+
+
+def test_warning_for_line_without_equals():
+    detailed = parse_env_detailed("GOOD=1\nBROKEN LINE\n")
+    assert detailed.values == {"GOOD": "1"}
+    assert any("line 2" in w for w in detailed.warnings)
+
+
+def test_warning_for_invalid_key_with_space():
+    detailed = parse_env_detailed("BAD KEY=1")
+    assert detailed.values == {}
+    assert any("invalid key" in w for w in detailed.warnings)
+
+
+def test_warning_for_duplicate_key():
+    detailed = parse_env_detailed("A=1\nA=2")
+    assert detailed.values == {"A": "2"}
+    assert any("already defined on line 1" in w for w in detailed.warnings)
+
+
+def test_no_warnings_for_clean_file():
+    assert parse_env_detailed("A=1\n# c\n").warnings == []

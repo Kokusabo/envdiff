@@ -12,11 +12,13 @@ class DiffResult:
     missing: keys present in base but absent from other.
     extra:   keys present in other but absent from base.
     empty:   keys present in other whose value is empty (may be intentional).
+    changed: keys present in both with different non-empty values.
     """
 
     missing: list[str] = field(default_factory=list)
     extra: list[str] = field(default_factory=list)
     empty: list[str] = field(default_factory=list)
+    changed: list[str] = field(default_factory=list)
 
     @property
     def has_errors(self) -> bool:
@@ -32,4 +34,9 @@ def compare(base: dict[str, str], other: dict[str, str]) -> DiffResult:
     missing = [k for k in base if k not in other]
     extra = [k for k in other if k not in base]
     empty = [k for k in other if other[k] == "" and k in base]
-    return DiffResult(missing=missing, extra=extra, empty=empty)
+    changed = [
+        k
+        for k in base
+        if k in other and other[k] != "" and base[k] != "" and base[k] != other[k]
+    ]
+    return DiffResult(missing=missing, extra=extra, empty=empty, changed=changed)
