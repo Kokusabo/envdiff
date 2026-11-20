@@ -135,3 +135,32 @@ def test_verbose_shows_parser_warnings(tmp_path):
     assert "no '='" in result.output
     quiet = runner.invoke(app, ["compare", str(a), str(b)])
     assert "no '='" not in quiet.output
+
+
+def test_values_that_look_like_markup_are_printed_as_written(tmp_path):
+    a = _write(tmp_path, "a.env", "A=1\n")
+    b = _write(tmp_path, "b.env", "A=1\nB=[/bold]\nC=[red]hi\n")
+    result = runner.invoke(app, ["compare", str(a), str(b)])
+    assert result.exit_code == 1
+    assert result.exception is None or isinstance(result.exception, SystemExit)
+    assert "[/bold]" in result.output
+    assert "[red]hi" in result.output
+
+
+def test_non_utf8_file_exits_two_with_message(tmp_path):
+    a = _write(tmp_path, "a.env", "A=1\n")
+    b = tmp_path / "b.env"
+    b.write_bytes(b"A=caf\xe9\n")
+    result = runner.invoke(app, ["compare", str(a), str(b)])
+    assert result.exit_code == 2
+    assert "UTF-8" in result.output
+
+
+def test_multiline_private_key_is_masked(tmp_path):
+    key = '"-----BEGIN-----\nsupersecretbody\n-----END-----"'
+    a = _write(tmp_path, "a.env", "PRIVATE_KEY=\n")
+    b = _write(tmp_path, "b.env", f"PRIVATE_KEY={key}\nEXTRA=1\n")
+    result = runner.invoke(app, ["compare", str(a), str(b), "-v"])
+    assert result.exit_code == 1
+    assert "supersecretbody" not in result.output
+    assert "no '='" not in result.output

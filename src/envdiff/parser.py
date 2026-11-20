@@ -16,21 +16,40 @@ class ParseResult:
     warnings: list[str] = field(default_factory=list)
 
 
-def _unquote(value: str) -> str | None:
-    """Return the value inside matching quotes, or None if it is not quoted.
+# Escape sequences understood inside double quotes. Anything else is kept as written.
+_ESCAPES = {"n": "\n", "r": "\r", "t": "\t", '"': '"', "\\": "\\"}
 
-    Anything after the closing quote (such as ` # comment`) is ignored.
+
+def _find_closing_quote(value: str, quote: str) -> int:
+    """Index of the quote that closes `value[0]`, or -1 if there is none.
+
+    Inside double quotes a backslash escapes the next character.
     """
-    if not value or value[0] not in ("'", '"'):
-        return None
-    quote = value[0]
-    end = value.find(quote, 1)
-    if end == -1:
-        return None
-    inner = value[1:end]
-    if quote == '"':
-        inner = inner.replace('\\"', '"').replace("\\n", "\n")
-    return inner
+    i = 1
+    while i < len(value):
+        char = value[i]
+        if quote == '"' and char == "\\":
+            i += 2
+            continue
+        if char == quote:
+            return i
+        i += 1
+    return -1
+
+
+def _unescape(value: str) -> str:
+    """Decode escapes in a double-quoted value in a single pass."""
+    out: list[str] = []
+    i = 0
+    while i < len(value):
+        char = value[i]
+        if char == "\\" and i + 1 < len(value) and value[i + 1] in _ESCAPES:
+            out.append(_ESCAPES[value[i + 1]])
+            i += 2
+        else:
+            out.append(char)
+            i += 1
+    return "".join(out)
 
 
 def _strip_inline_comment(value: str) -> str:
@@ -47,18 +66,23 @@ def parse_env_detailed(text: str) -> ParseResult:
 
     Supports comments (`#`), blank lines, an optional `export ` prefix,
     a UTF-8 byte order mark, CRLF line endings, single- and double-quoted
-    values (with a trailing comment allowed), and inline comments on unquoted
-    values. Keys with empty values are kept with an empty string.
+    values (with a trailing comment allowed), quoted values that span several
+    lines, and inline comments on unquoted values. Keys with empty values are
+    kept with an empty string.
 
-    Warnings report lines that could not be parsed and keys defined more than
-    once (the last definition wins, as most loaders do).
+    Warnings report lines that could not be parsed, quotes that are never
+    closed, and keys defined more than once (the last definition wins, as most
+    loaders do).
     """
     result = ParseResult()
-    text = text.lstrip(BOM)
+    lines = text.lstrip(BOM).splitlines()
     seen_lines: dict[str, int] = {}
+    index = 0
 
-    for number, raw_line in enumerate(text.splitlines(), start=1):
-        line = raw_line.strip()
+    while index < len(lines):
+        number = index + 1
+        line = lines[index].strip()
+        index += 1
         if not line or line.startswith("#"):
             continue
         if line.startswith("export "):
@@ -68,13 +92,32 @@ def parse_env_detailed(text: str) -> ParseResult:
             continue
         key, _, raw_value = line.partition("=")
         key = key.strip()
-        if not key or " " in key:
+        if not key or any(char.isspace() for char in key):
             result.warnings.append(f"line {number}: invalid key {key!r}, line ignored")
             continue
 
         raw_value = raw_value.strip()
-        quoted = _unquote(raw_value)
-        value = quoted if quoted is not None else _strip_inline_comment(raw_value)
+        value: str | None = None
+        if raw_value[:1] in ("'", '"'):
+            quote = raw_value[0]
+            joined = raw_value
+            end = _find_closing_quote(joined, quote)
+            next_index = index
+            # A quoted value may continue on the following lines.
+            while end == -1 and next_index < len(lines):
+                joined += "\n" + lines[next_index]
+                next_index += 1
+                end = _find_closing_quote(joined, quote)
+            if end == -1:
+                result.warnings.append(
+                    f"line {number}: {key} has an unclosed {quote} quote, value used as written"
+                )
+            else:
+                index = next_index
+                inner = joined[1:end]
+                value = _unescape(inner) if quote == '"' else inner
+        if value is None:
+            value = _strip_inline_comment(raw_value)
 
         if key in seen_lines:
             result.warnings.append(

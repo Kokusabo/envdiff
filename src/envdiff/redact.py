@@ -7,8 +7,9 @@ import re
 SECRET_MARKERS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "PRIVATE", "CREDENTIAL")
 MASK = "********"
 
-# Matches the password part of URLs such as postgres://user:PASS@host/db.
-_URL_PASSWORD = re.compile(r"(://[^:/@\s]+:)([^@\s]+)(@)")
+# Matches the userinfo of a URL: everything between "://" and the last "@" before
+# the host, so passwords that themselves contain "@" are covered too.
+_URL_USERINFO = re.compile(r"(://)([^/?#\s]*)(@)")
 
 
 def is_secret_key(key: str) -> bool:
@@ -17,9 +18,17 @@ def is_secret_key(key: str) -> bool:
     return any(marker in upper for marker in SECRET_MARKERS)
 
 
+def _mask_userinfo(match: re.Match[str]) -> str:
+    userinfo = match.group(2)
+    user, sep, _password = userinfo.partition(":")
+    # user:password keeps the user name; a bare token (https://TOKEN@host) is hidden.
+    masked = f"{user}:{MASK}" if sep else MASK
+    return f"{match.group(1)}{masked}{match.group(3)}"
+
+
 def mask_url_password(value: str) -> str:
-    """Replace the password inside a URL's userinfo with the mask."""
-    return _URL_PASSWORD.sub(lambda m: f"{m.group(1)}{MASK}{m.group(3)}", value)
+    """Hide credentials inside URLs: the password, or a token used as the user name."""
+    return _URL_USERINFO.sub(_mask_userinfo, value)
 
 
 def display_value(key: str, value: str) -> str:

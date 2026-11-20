@@ -56,3 +56,17 @@ def test_url_password_is_masked_for_non_secret_key():
         "postgres://app:********@db:5432/x"
     )
     assert display_value("REDIS_URL", "redis://localhost:6379/0") == "redis://localhost:6379/0"
+
+
+def test_url_password_containing_at_sign_is_fully_masked():
+    assert display_value("DB", "postgres://u:p@ss@h/db") == "postgres://u:********@h/db"
+
+
+def test_url_token_without_password_is_masked():
+    assert display_value("REPO", "https://ghp_abc123@github.com/x.git") == (
+        "https://********@github.com/x.git"
+    )
+
+
+def test_url_without_userinfo_is_unchanged():
+    assert display_value("REDIS", "redis://localhost:6379/0") == "redis://localhost:6379/0"

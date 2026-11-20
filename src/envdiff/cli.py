@@ -7,6 +7,7 @@ from pathlib import Path
 
 import typer
 from rich.console import Console
+from rich.markup import escape
 from rich.table import Table
 
 from envdiff import __version__
@@ -66,25 +67,28 @@ def _print_report(
     other_name: str,
     show_changed: bool,
 ) -> None:
-    table = Table(title=f"{base_name} vs {other_name}", show_lines=False)
+    # Keys, values, and file names come from user files: escape them so text such
+    # as "[bold]" is shown as written instead of being read as Rich markup.
+    base_label, other_label = escape(base_name), escape(other_name)
+    table = Table(title=f"{base_label} vs {other_label}", show_lines=False)
     table.add_column("Key", style="bold")
     table.add_column("Status")
-    table.add_column(base_name)
-    table.add_column(other_name)
+    table.add_column(base_label)
+    table.add_column(other_label)
+
+    def shown(env: dict[str, str], key: str) -> str:
+        return escape(display_value(key, env[key]))
 
     for key in result.missing:
-        table.add_row(key, "[red]missing[/red]", display_value(key, base_env[key]), "-")
+        table.add_row(escape(key), "[red]missing[/red]", shown(base_env, key), "-")
     for key in result.extra:
-        table.add_row(key, "[red]extra[/red]", "-", display_value(key, other_env[key]))
+        table.add_row(escape(key), "[red]extra[/red]", "-", shown(other_env, key))
     for key in result.empty:
-        table.add_row(key, "[yellow]empty[/yellow]", display_value(key, base_env[key]), "(empty)")
+        table.add_row(escape(key), "[yellow]empty[/yellow]", shown(base_env, key), "(empty)")
     if show_changed:
         for key in result.changed:
             table.add_row(
-                key,
-                "[cyan]changed[/cyan]",
-                display_value(key, base_env[key]),
-                display_value(key, other_env[key]),
+                escape(key), "[cyan]changed[/cyan]", shown(base_env, key), shown(other_env, key)
             )
 
     if table.row_count:
@@ -97,7 +101,7 @@ def _print_report(
             f"[yellow]{len(result.empty)} empty[/yellow]"
         )
     else:
-        console.print(f"[green]OK[/green]: {other_name} matches {base_name}")
+        console.print(f"[green]OK[/green]: {other_label} matches {base_label}")
     if show_changed:
         console.print(f"[cyan]{len(result.changed)} changed[/cyan]")
 
@@ -124,15 +128,26 @@ def compare_cmd(
 ) -> None:
     """Compare each OTHER file against BASE and report differences.
 
-    Exit code 0 when no problems are found in any file, 1 otherwise.
+    Exit code 0 when no problems are found in any file, 1 when differences are
+    found, and 2 when a file cannot be read.
     """
     ignored = set(ignore)
 
     def load(path: Path) -> dict[str, str]:
-        parsed = load_env_detailed(path)
+        try:
+            parsed = load_env_detailed(path)
+        except UnicodeDecodeError:
+            err_console.print(f"[red]error[/red] {escape(str(path))}: not a UTF-8 text file")
+            raise typer.Exit(code=2) from None
+        except OSError as exc:
+            reason = escape(exc.strerror or str(exc))
+            err_console.print(f"[red]error[/red] {escape(str(path))}: {reason}")
+            raise typer.Exit(code=2) from None
         if verbose:
             for warning in parsed.warnings:
-                err_console.print(f"[yellow]warning[/yellow] {path.name}: {warning}")
+                err_console.print(
+                    f"[yellow]warning[/yellow] {escape(path.name)}: {escape(warning)}"
+                )
         return {k: v for k, v in parsed.values.items() if k not in ignored}
 
     base_env = load(base)

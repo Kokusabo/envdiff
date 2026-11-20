@@ -76,3 +76,41 @@ def test_warning_for_duplicate_key():
 
 def test_no_warnings_for_clean_file():
     assert parse_env_detailed("A=1\n# c\n").warnings == []
+
+
+def test_escaped_quote_inside_double_quotes():
+    assert parse_env(r'A="say \"hi\" ok"') == {"A": 'say "hi" ok'}
+
+
+def test_escaped_backslash_is_decoded_once():
+    assert parse_env(r'A="c:\\new"') == {"A": "c:\\new"}
+
+
+def test_single_quotes_keep_backslashes():
+    assert parse_env(r"A='raw\n'") == {"A": "raw\\n"}
+
+
+def test_multiline_double_quoted_value():
+    text = 'KEY="-----BEGIN KEY-----\nabc\n-----END KEY-----"\nNEXT=1\n'
+    detailed = parse_env_detailed(text)
+    assert detailed.values == {
+        "KEY": "-----BEGIN KEY-----\nabc\n-----END KEY-----",
+        "NEXT": "1",
+    }
+    assert detailed.warnings == []
+
+
+def test_multiline_single_quoted_value():
+    assert parse_env("A='one\ntwo'\nB=2") == {"A": "one\ntwo", "B": "2"}
+
+
+def test_unclosed_quote_warns_and_keeps_raw_value():
+    detailed = parse_env_detailed("A='abc")
+    assert detailed.values == {"A": "'abc"}
+    assert any("unclosed" in w for w in detailed.warnings)
+
+
+def test_warning_for_invalid_key_with_tab():
+    detailed = parse_env_detailed("BAD\tKEY=1")
+    assert detailed.values == {}
+    assert any("invalid key" in w for w in detailed.warnings)
