@@ -1,13 +1,15 @@
 [build-system]
-requires = ["setuptools>=69", "wheel"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "envdiff"
-version = "0.1.0"
+dynamic = ["version"]
 description = "Compare .env files and find missing, extra, or empty variables, with secrets masked."
 readme = "README.md"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Kokusabo" }]
 requires-python = ">=3.11"
 dependencies = [
     "typer>=0.12",
@@ -15,6 +17,9 @@ dependencies = [
 ]
 keywords = ["env", "dotenv", "cli", "devtools", "config"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
@@ -23,11 +28,19 @@ classifiers = [
     "Topic :: Software Development :: Build Tools",
 ]
 
+[project.urls]
+Homepage = "https://github.com/Kokusabo/envdiff"
+Issues = "https://github.com/Kokusabo/envdiff/issues"
+Changelog = "https://github.com/Kokusabo/envdiff/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.5"]
+dev = ["pytest>=8", "ruff>=0.5", "build>=1", "twine>=5"]
 
 [project.scripts]
 envdiff = "envdiff.cli:app"
+
+[tool.setuptools.dynamic]
+version = { attr = "envdiff.__version__" }
 
 [tool.setuptools.packages.find]
 where = ["src"]

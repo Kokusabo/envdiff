@@ -1,6 +1,6 @@
 # envdiff
 
-[![CI](https://github.com/YOUR_USERNAME/envdiff/actions/workflows/ci.yml/badge.svg)](https://github.com/YOUR_USERNAME/envdiff/actions/workflows/ci.yml)
+[![CI](https://github.com/Kokusabo/envdiff/actions/workflows/ci.yml/badge.svg)](https://github.com/Kokusabo/envdiff/actions/workflows/ci.yml)
 ![Python](https://img.shields.io/badge/python-3.11%2B-blue)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -31,7 +31,7 @@ pip install envdiff
 Or from source:
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/envdiff.git
+git clone https://github.com/Kokusabo/envdiff.git
 cd envdiff
 pip install -e ".[dev]"
 ```
@@ -51,9 +51,9 @@ envdiff --version
 
 - `BASE` is the reference, usually `.env.example`.
 - `OTHER` is the file to check, such as `.env.prod`.
-- Exit code `0` means no problems were found. `1` means there are differences.
+- Exit code `0` means no problems were found. `1` means there are differences. `2` means a file could not be read (missing, unreadable, or not UTF-8).
 - Keys whose names contain `KEY`, `TOKEN`, `SECRET`, `PASSWORD`, and similar are shown as `********`.
-- Passwords inside URLs (`postgres://user:pass@host`) are masked even when the key name does not look like a secret.
+- Credentials inside URLs are masked even when the key name does not look like a secret: the password in `postgres://user:pass@host`, and a bare token in `https://TOKEN@host`.
 
 CI example:
 
@@ -63,9 +63,11 @@ CI example:
 
 ## Supported syntax
 
-Comments (`#`), blank lines, `export KEY=value`, single and double quoted values (a trailing comment after the quote is allowed), inline comments on unquoted values, empty values, UTF-8 BOM, and Windows (CRLF) line endings.
+Comments (`#`), blank lines, `export KEY=value`, single and double quoted values (a trailing comment after the quote is allowed), quoted values that span several lines (such as PEM private keys), inline comments on unquoted values, empty values, UTF-8 BOM, and Windows (CRLF) line endings.
 
-Lines that cannot be parsed and duplicate keys are reported as warnings with `--verbose`.
+Inside double quotes, `\n`, `\t`, `\r`, `\"` and `\\` are decoded. Single-quoted values are taken literally.
+
+Lines that cannot be parsed, unclosed quotes, and duplicate keys are reported as warnings with `--verbose`.
 
 ## Development
 
@@ -73,7 +75,16 @@ Lines that cannot be parsed and duplicate keys are reported as warnings with `--
 pip install -e ".[dev]"
 pytest
 ruff check .
+python -m build && twine check dist/*
 ```
+
+## Releasing
+
+1. Bump `__version__` in `src/envdiff/__init__.py` and add an entry to `CHANGELOG.md`.
+2. Tag and push: `git tag v0.1.0 && git push origin v0.1.0`.
+3. The `Release` workflow builds the package and publishes it to PyPI with [trusted publishing](https://docs.pypi.org/trusted-publishers/), so no API token is stored in the repository.
+
+One-time setup on PyPI: add a pending trusted publisher for project `envdiff`, owner `Kokusabo`, repository `envdiff`, workflow `release.yml`, environment `pypi`.
 
 ## License
 
