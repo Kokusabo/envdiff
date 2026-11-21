@@ -6,10 +6,17 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest]
         python-version: ["3.11", "3.12", "3.13"]
+        include:
+          - os: windows-latest
+            python-version: "3.13"
+          - os: macos-latest
+            python-version: "3.13"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -21,3 +28,21 @@ jobs:
         run: ruff check .
       - name: Test
         run: pytest
+
+  action:
+    # Dogfood the GitHub Action on the demo project. The demo has intentional
+    # problems, so this step is expected to fail; we only check that it runs
+    # and reports them.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - id: scan
+        uses: ./
+        continue-on-error: true
+        with:
+          args: scan examples/app --against examples/.env.example
+      - name: Expect the demo scan to find problems
+        if: steps.scan.outcome != 'failure'
+        run: |
+          echo "envdiff should have reported undocumented variables in examples/app"
+          exit 1

@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import re
 
-SECRET_MARKERS = ("KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "PRIVATE", "CREDENTIAL")
+SECRET_MARKERS = (
+    "KEY", "TOKEN", "SECRET", "PASSWORD", "PASSWD", "PRIVATE", "CREDENTIAL", "DSN", "AUTH",
+)
 MASK = "********"
 
-# Matches the password part of URLs such as postgres://user:PASS@host/db.
-_URL_PASSWORD = re.compile(r"(://[^:/@\s]+:)([^@\s]+)(@)")
+# The userinfo part of a URL: scheme://USERINFO@host
+_URL_USERINFO = re.compile(r"://([^/@\s]+)@")
 
 
 def is_secret_key(key: str) -> bool:
@@ -17,9 +19,18 @@ def is_secret_key(key: str) -> bool:
     return any(marker in upper for marker in SECRET_MARKERS)
 
 
+def _mask_userinfo(match: re.Match[str]) -> str:
+    user, sep, _password = match.group(1).partition(":")
+    if sep:
+        # user:password@ -> keep the user name, hide the password
+        return f"://{user}:{MASK}@"
+    # token@ (Sentry DSN, https://TOKEN@github.com, ...) -> hide it all
+    return f"://{MASK}@"
+
+
 def mask_url_password(value: str) -> str:
-    """Replace the password inside a URL's userinfo with the mask."""
-    return _URL_PASSWORD.sub(lambda m: f"{m.group(1)}{MASK}{m.group(3)}", value)
+    """Hide credentials inside URLs: passwords, and tokens used as the user name."""
+    return _URL_USERINFO.sub(_mask_userinfo, value)
 
 
 def display_value(key: str, value: str) -> str:

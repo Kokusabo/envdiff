@@ -56,3 +56,16 @@ def test_url_password_is_masked_for_non_secret_key():
         "postgres://app:********@db:5432/x"
     )
     assert display_value("REDIS_URL", "redis://localhost:6379/0") == "redis://localhost:6379/0"
+
+
+def test_url_token_as_user_is_masked():
+    from envdiff.redact import mask_url_password
+
+    assert mask_url_password("https://abc123@sentry.io/1") == "https://********@sentry.io/1"
+    assert mask_url_password("https://ghp_x@github.com/o/r.git") == "https://********@github.com/o/r.git"
+    assert mask_url_password("plain text @ not a url") == "plain text @ not a url"
+
+
+def test_dsn_and_auth_keys_are_secret():
+    assert is_secret_key("SENTRY_DSN")
+    assert is_secret_key("BASIC_AUTH")

@@ -76,3 +76,19 @@ def test_warning_for_duplicate_key():
 
 def test_no_warnings_for_clean_file():
     assert parse_env_detailed("A=1\n# c\n").warnings == []
+
+
+def test_escaped_quotes_and_backslashes_in_double_quotes():
+    assert parse_env(r'A="say \"hi\""') == {"A": 'say "hi"'}
+    assert parse_env(r'B="C:\\path\\to"') == {"B": r"C:\path\to"}
+    assert parse_env(r'C="tab\there"') == {"C": "tab\there"}
+    # Unknown escapes keep the backslash.
+    assert parse_env(r'D="C:\path"') == {"D": r"C:\path"}
+
+
+def test_single_quotes_are_literal():
+    assert parse_env(r"A='no \n escape'") == {"A": r"no \n escape"}
+
+
+def test_unclosed_quote_is_kept_as_is():
+    assert parse_env('A="open') == {"A": '"open'}

@@ -1,0 +1,15 @@
+- id: envdiff-scan
+  name: envdiff scan
+  description: Fail when code reads env variables that .env.example does not document.
+  entry: envdiff scan
+  language: python
+  pass_filenames: false
+  types_or: [python, javascript, ts, tsx, go, ruby, rust, php]
+
+- id: envdiff-compare
+  name: envdiff compare
+  description: Compare env files, e.g. args [.env.example, .env.test].
+  entry: envdiff compare
+  language: python
+  pass_filenames: false
+  files: '(^|/)\.env'

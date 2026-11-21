@@ -1,0 +1,33 @@
+name: envdiff
+description: Fail the build when .env files drift from .env.example or code reads undocumented env variables.
+author: Kokusabo
+branding:
+  icon: check-square
+  color: green
+
+inputs:
+  args:
+    description: >
+      Arguments for envdiff, for example
+      "scan src --against .env.example" or "compare .env.example .env.ci --strict".
+    required: true
+  python-version:
+    description: Python version used to run envdiff.
+    required: false
+    default: "3.12"
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Install envdiff
+      shell: bash
+      run: pip install --quiet "$GITHUB_ACTION_PATH"
+    - name: Run envdiff
+      shell: bash
+      env:
+        ENVDIFF_ARGS: ${{ inputs.args }}
+      # Word splitting of ENVDIFF_ARGS is intended: it holds several arguments.
+      run: envdiff $ENVDIFF_ARGS --format github
